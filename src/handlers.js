@@ -97,11 +97,22 @@ async function handleImageMessage(buffer, mimeType) {
     const imagePart = {
       inlineData: { data: buffer.toString("base64"), mimeType },
     };
+
     const result = await model.generateContent([
       "Apa yang bisa kamu analisa dari gambar ini?",
       imagePart,
     ]);
-    return result.response.text();
+
+    let raw = result.response.text();
+
+    // 🔧 Bersihkan teks
+    let cleaned = raw
+      .replace(/[*_`~]/g, "") // Hapus karakter formatting markdown
+      .replace(/\n{2,}/g, "\n") // Hapus baris kosong berturut-turut
+      .replace(/(?:^|\n)(?:Prompt|User|You|AI):.*\n?/gi, "") // Hapus label dari hasil
+      .trim(); // Trim spasi di awal/akhir
+
+    return cleaned;
   } catch (error) {
     console.error("Error dalam memproses gambar:", error);
     return "Maaf, saya tidak bisa memproses gambar ini.";
