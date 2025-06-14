@@ -6,12 +6,13 @@ const {
   downloadMediaMessage,
 } = require("@whiskeysockets/baileys");
 const { handleTextMessage, handleImageMessage } = require("./handlers");
+
 const authFolder = "./auth";
 let loginAttempts = 0;
 
-async function startBot() {
+async function startBot(logFn = console.log) {
   if (loginAttempts >= 3) {
-    console.log("Gagal login 3 kali, menghapus folder auth...");
+    logFn("❌ Gagal login 3 kali, menghapus folder auth...");
     fs.rmSync(authFolder, { recursive: true, force: true });
     loginAttempts = 0;
   }
@@ -28,16 +29,16 @@ async function startBot() {
     const { connection, lastDisconnect, qr } = update;
 
     if (qr) {
-      console.log("Scan QR Code berikut untuk login:");
+      logFn("📱 Scan QR Code berikut untuk login:");
       qrcode.generate(qr, { small: true });
     }
 
     if (connection === "close") {
-      console.log("Koneksi terputus, mencoba reconnect...");
+      logFn("⚠️ Koneksi terputus, mencoba reconnect...");
       loginAttempts++;
-      startBot();
+      startBot(logFn); // kirim logFn saat rekoneksi
     } else if (connection === "open") {
-      console.log("Bot WhatsApp siap!");
+      logFn("✅ Bot WhatsApp siap!");
       loginAttempts = 0;
     }
   });
@@ -46,26 +47,33 @@ async function startBot() {
     const msg = m.messages[0];
     if (!msg.key.fromMe) {
       const sender = msg.key.remoteJid;
-      console.log(`Pesan diterima dari ${sender}:`, msg);
+      logFn(`📩 Pesan diterima dari ${sender}`);
 
       await sock.readMessages([msg.key]);
 
       if (msg.message?.protocolMessage?.type === 0) {
-        console.log(`Pesan dari ${sender} telah dihapus.`);
+        logFn(`🗑️ Pesan dari ${sender} telah dihapus.`);
         return;
       }
 
-      if (msg.message.imageMessage) {
-        const mediaBuffer = await downloadMediaMessage(msg, "buffer");
-        const mimeType = msg.message.imageMessage.mimetype || "image/jpeg";
-        const reply = await handleImageMessage(mediaBuffer, mimeType);
-        await sock.sendMessage(sender, { text: reply }, { read: true });
-      } else {
-        const text =
-          msg.message.conversation || msg.message.extendedTextMessage?.text;
-        if (!text) return;
-        const reply = await handleTextMessage(sender, text);
-        await sock.sendMessage(sender, { text: reply }, { read: true });
+      try {
+        if (msg.message.imageMessage) {
+          const mediaBuffer = await downloadMediaMessage(msg, "buffer");
+          const mimeType = msg.message.imageMessage.mimetype || "image/jpeg";
+          const reply = await handleImageMessage(mediaBuffer, mimeType);
+          await sock.sendMessage(sender, { text: reply }, { read: true });
+          logFn(`🖼️ Balasan gambar dikirim ke ${sender}`);
+        } else {
+          const text =
+            msg.message.conversation || msg.message.extendedTextMessage?.text;
+          if (!text) return;
+
+          const reply = await handleTextMessage(sender, text);
+          await sock.sendMessage(sender, { text: reply }, { read: true });
+          logFn(`💬 Balasan teks dikirim ke ${sender}`);
+        }
+      } catch (err) {
+        logFn(`❗ Terjadi error saat memproses pesan dari ${sender}: ${err}`);
       }
     }
   });
