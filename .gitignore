@@ -1,0 +1,4 @@
+/.env
+/.vscode
+/auth
+/node_modules
