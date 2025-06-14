@@ -11,17 +11,19 @@ async function handleTextMessage(chatId, message) {
   try {
     if (message.startsWith(".gambar ")) {
       const prompt = message.replace(".gambar ", "").trim();
-      if (!prompt)
-        return "⚠️ Prompt tidak boleh kosong. Contoh: .gambar pemandangan gunung di pagi hari";
+      const imagePath = `generated_${Date.now()}.png`;
+      const output = await generateImage(prompt, imagePath);
 
-      const result = await generateImage(prompt);
-      if (result.error) return result.error;
-
-      // Kembalikan object agar diproses pengirimannya di bot utama (bot.js)
-      return {
-        imageBuffer: result.buffer,
-        caption: `🖼️ Gambar untuk prompt: "${prompt}"`,
-      };
+      if (output) {
+        await sock.sendMessage(chatId, {
+          image: fs.readFileSync(output),
+          caption: `🖼️ Gambar untuk prompt:\n${prompt}`,
+        });
+        fs.unlinkSync(output); // hapus gambar setelah dikirim
+        return;
+      } else {
+        return "❌ Gagal membuat gambar dari prompt.";
+      }
     }
 
     if (message.startsWith(".salat")) {
