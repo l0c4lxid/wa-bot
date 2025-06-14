@@ -68,7 +68,26 @@ async function handleTextMessage(chatId, message) {
 
     // Simpan percakapan ke chat history
     if (!chatHistory[chatId]) chatHistory[chatId] = {};
-    if (!chatHistory[chatId].history) chatHistory[chatId].history = [];
+    if (!chatHistory[chatId].history) {
+      chatHistory[chatId].history = [
+        {
+          role: "user",
+          parts: [
+            {
+              text: `Kamu adalah asisten pribadi saya bernama Andhika Assistant. Kamu membantu saya dalam menjawab pertanyaan, menganalisis gambar, serta memberikan informasi berdasarkan konteks yang saya berikan. Jawablah dengan sopan, jelas, dan langsung ke inti.`,
+            },
+          ],
+        },
+        {
+          role: "model",
+          parts: [
+            {
+              text: `Halo! Saya adalah Andhika Assistant, siap membantu kamu. Silakan tanya apa pun.`,
+            },
+          ],
+        },
+      ];
+    }
     chatHistory[chatId].history.push({
       role: "user",
       parts: [{ text: message }],
