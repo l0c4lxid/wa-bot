@@ -26,7 +26,8 @@ async function startBot(logFn = console.log) {
   sock.ev.on("creds.update", saveCreds);
 
   sock.ev.on("connection.update", (update) => {
-    const { connection, qr } = update;
+    const { connection, lastDisconnect, qr } = update;
+
     if (qr) {
       logFn("📱 Scan QR Code berikut untuk login:");
       qrcode.generate(qr, { small: true });
@@ -60,7 +61,6 @@ async function startBot(logFn = console.log) {
           const mediaBuffer = await downloadMediaMessage(msg, "buffer");
           const mimeType = msg.message.imageMessage.mimetype || "image/jpeg";
           const reply = await handleImageMessage(mediaBuffer, mimeType);
-
           await sock.sendMessage(sender, { text: reply }, { read: true });
           logFn(`🖼️ Balasan gambar dikirim ke ${sender}`);
         } else {
@@ -74,12 +74,11 @@ async function startBot(logFn = console.log) {
             await sock.sendMessage(sender, { text: reply }, { read: true });
             logFn(`💬 Balasan teks dikirim ke ${sender}`);
           } else if (reply?.type === "image") {
-            const imageBuffer = fs.readFileSync(reply.path);
             await sock.sendMessage(sender, {
-              image: imageBuffer,
+              image: fs.createReadStream(reply.path),
               caption: reply.caption,
             });
-            fs.unlinkSync(reply.path);
+            fs.unlinkSync(reply.path); // auto hapus setelah kirim
             logFn(`🖼️ Gambar dikirim ke ${sender}`);
           }
         }
