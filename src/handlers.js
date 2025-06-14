@@ -1,24 +1,19 @@
-const fs = require("fs");
 const path = require("path");
-const { getSalatLocations, getPrayerSchedule } = require("./salatApi");
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 const { generateImage } = require("./generateImage");
+const { getSalatLocations, getPrayerSchedule } = require("./salatApi");
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
-
-const imageDir = path.join(__dirname, "..", "gambar");
-if (!fs.existsSync(imageDir)) {
-  fs.mkdirSync(imageDir, { recursive: true });
-}
 
 let chatHistory = {};
 
 async function handleTextMessage(chatId, message) {
   try {
+    // Fitur gambar
     if (message.startsWith(".gambar ")) {
       const prompt = message.replace(".gambar ", "").trim();
-      const imagePath = path.join(imageDir, `generated_${Date.now()}.png`);
+      const imagePath = `generated_${Date.now()}.png`;
       const output = await generateImage(prompt, imagePath);
 
       if (output) {
@@ -32,8 +27,10 @@ async function handleTextMessage(chatId, message) {
       }
     }
 
+    // Fitur jadwal salat
     if (message.startsWith(".salat")) {
       const parts = message.split(" ");
+
       if (parts.length === 1) {
         const locations = await getSalatLocations();
         if (!Array.isArray(locations)) {
@@ -55,6 +52,7 @@ async function handleTextMessage(chatId, message) {
       const prayerSchedule = await getPrayerSchedule(cityId);
       const scheduleLines = prayerSchedule.split("\n");
       let prayerTimes = {};
+
       scheduleLines.forEach((line) => {
         const [name, time] = line.split(": ");
         if (name && time) {
@@ -71,15 +69,14 @@ async function handleTextMessage(chatId, message) {
     const prayerKeywords = ["subuh", "dzuhur", "ashar", "magrib", "isya"];
     for (const prayer of prayerKeywords) {
       if (message.toLowerCase().includes(prayer)) {
-        if (chatHistory[chatId]?.prayerSchedule?.[prayer]) {
-          return `🕌 ${prayer.charAt(0).toUpperCase() + prayer.slice(1)}: ${
-            chatHistory[chatId].prayerSchedule[prayer]
-          }`;
-        }
-        return "⚠️ Saya belum memiliki data jadwal salat. Gunakan perintah .salat [ID Kota] terlebih dahulu.";
+        const data = chatHistory[chatId]?.prayerSchedule?.[prayer];
+        return data
+          ? `🕌 ${prayer.charAt(0).toUpperCase() + prayer.slice(1)}: ${data}`
+          : "⚠️ Saya belum memiliki data jadwal salat. Gunakan perintah .salat [ID Kota] terlebih dahulu.";
       }
     }
 
+    // Chat AI default
     if (!chatHistory[chatId]) chatHistory[chatId] = {};
     if (!chatHistory[chatId].history) {
       chatHistory[chatId].history = [
@@ -87,16 +84,14 @@ async function handleTextMessage(chatId, message) {
           role: "user",
           parts: [
             {
-              text: `Kamu adalah asisten pribadi saya bernama Hayasaka AI. Kamu membantu saya dalam menjawab pertanyaan, menganalisis gambar, serta memberikan informasi berdasarkan konteks yang saya berikan. Jawablah dengan sopan, jelas, dan langsung ke inti.`,
+              text: `Kamu adalah asisten pribadi saya bernama Hayasaka AI. Jawablah dengan sopan, jelas, dan langsung ke inti.`,
             },
           ],
         },
         {
           role: "model",
           parts: [
-            {
-              text: "Halo! Saya adalah Hayasaka AI, siap membantu kamu. Silakan tanya apa pun.",
-            },
+            { text: `Halo! Saya adalah Hayasaka AI, siap membantu kamu.` },
           ],
         },
       ];
@@ -106,9 +101,11 @@ async function handleTextMessage(chatId, message) {
       role: "user",
       parts: [{ text: message }],
     });
+
     const chatSession = model.startChat({
       history: chatHistory[chatId].history,
     });
+
     const result = await chatSession.sendMessage(message);
     const reply = result.response.text().replace(/[*`_]/g, "");
 
@@ -116,10 +113,11 @@ async function handleTextMessage(chatId, message) {
       role: "model",
       parts: [{ text: reply }],
     });
+
     return reply;
   } catch (error) {
     console.error("Error dalam menangani pesan:", error);
-    return "Maaf, terjadi kesalahan dalam memproses pesan.";
+    return "❌ Terjadi kesalahan dalam memproses pesan.";
   }
 }
 
@@ -134,17 +132,16 @@ async function handleImageMessage(buffer, mimeType) {
       imagePart,
     ]);
 
-    let raw = result.response.text();
-    let cleaned = raw
+    const raw = result.response.text();
+
+    return raw
       .replace(/[*_`~]/g, "")
       .replace(/\n{2,}/g, "\n")
       .replace(/(?:^|\n)(?:Prompt|User|You|AI):.*\n?/gi, "")
       .trim();
-
-    return cleaned;
   } catch (error) {
     console.error("Error dalam memproses gambar:", error);
-    return "Maaf, saya tidak bisa memproses gambar ini.";
+    return "❌ Gagal memproses gambar.";
   }
 }
 
