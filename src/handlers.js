@@ -74,7 +74,7 @@ async function handleTextMessage(chatId, message) {
           role: "user",
           parts: [
             {
-              text: `Kamu adalah asisten pribadi saya bernama Andhika Assistant. Kamu membantu saya dalam menjawab pertanyaan, menganalisis gambar, serta memberikan informasi berdasarkan konteks yang saya berikan. Jawablah dengan sopan, jelas, dan langsung ke inti.`,
+              text: `Kamu adalah asisten pribadi saya bernama Hayasaka AI. Kamu membantu saya dalam menjawab pertanyaan, menganalisis gambar, serta memberikan informasi berdasarkan konteks yang saya berikan. Jawablah dengan sopan, jelas, dan langsung ke inti.`,
             },
           ],
         },
@@ -82,7 +82,7 @@ async function handleTextMessage(chatId, message) {
           role: "model",
           parts: [
             {
-              text: `Halo! Saya adalah Andhika Assistant, siap membantu kamu. Silakan tanya apa pun.`,
+              text: `Halo! Saya adalah Hayasaka AI, siap membantu kamu. Silakan tanya apa pun.`,
             },
           ],
         },
