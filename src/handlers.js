@@ -8,6 +8,21 @@ let chatHistory = {};
 
 async function handleTextMessage(chatId, message) {
   try {
+    if (message.startsWith(".gambar ")) {
+      const prompt = message.replace(".gambar ", "").trim();
+      if (!prompt)
+        return "⚠️ Prompt tidak boleh kosong. Contoh: .gambar pemandangan gunung di pagi hari";
+
+      const result = await generateImage(prompt);
+      if (result.error) return result.error;
+
+      // Kembalikan object agar diproses pengirimannya di bot utama (bot.js)
+      return {
+        imageBuffer: result.buffer,
+        caption: `🖼️ Gambar untuk prompt: "${prompt}"`,
+      };
+    }
+
     if (message.startsWith(".salat")) {
       const parts = message.split(" ");
 

@@ -69,8 +69,21 @@ async function startBot(logFn = console.log) {
           if (!text) return;
 
           const reply = await handleTextMessage(sender, text);
-          await sock.sendMessage(sender, { text: reply }, { read: true });
-          logFn(`💬 Balasan teks dikirim ke ${sender}`);
+
+          if (reply?.imageBuffer) {
+            await sock.sendMessage(
+              sender,
+              {
+                image: reply.imageBuffer,
+                caption: reply.caption || "",
+              },
+              { read: true }
+            );
+            logFn(`🖼️ Gambar dikirim ke ${sender}`);
+          } else {
+            await sock.sendMessage(sender, { text: reply }, { read: true });
+            logFn(`💬 Balasan teks dikirim ke ${sender}`);
+          }
         }
       } catch (err) {
         logFn(`❗ Terjadi error saat memproses pesan dari ${sender}: ${err}`);
