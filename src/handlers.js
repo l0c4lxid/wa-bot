@@ -15,12 +15,11 @@ async function handleTextMessage(chatId, message) {
       const output = await generateImage(prompt, imagePath);
 
       if (output) {
-        await sock.sendMessage(chatId, {
-          image: fs.readFileSync(output),
+        return {
+          type: "image",
+          path: path.resolve(output), // full path supaya aman
           caption: `🖼️ Gambar untuk prompt:\n${prompt}`,
-        });
-        fs.unlinkSync(output); // hapus gambar setelah dikirim
-        return;
+        };
       } else {
         return "❌ Gagal membuat gambar dari prompt.";
       }

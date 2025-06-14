@@ -69,19 +69,17 @@ async function startBot(logFn = console.log) {
           if (!text) return;
 
           const reply = await handleTextMessage(sender, text);
+
           if (typeof reply === "string") {
             await sock.sendMessage(sender, { text: reply }, { read: true });
             logFn(`💬 Balasan teks dikirim ke ${sender}`);
           } else if (reply?.type === "image") {
             await sock.sendMessage(sender, {
               image: fs.readFileSync(reply.path),
-              caption: `🖼️ Gambar untuk prompt:\n${reply.prompt}`,
+              caption: reply.caption,
             });
-            fs.unlinkSync(reply.path);
+            fs.unlinkSync(reply.path); // opsional: hapus setelah dikirim
             logFn(`🖼️ Gambar dikirim ke ${sender}`);
-          } else {
-            await sock.sendMessage(sender, { text: reply }, { read: true });
-            logFn(`💬 Balasan teks dikirim ke ${sender}`);
           }
         }
       } catch (err) {
