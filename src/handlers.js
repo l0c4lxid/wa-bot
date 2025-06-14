@@ -67,6 +67,7 @@ async function handleTextMessage(chatId, message) {
     }
 
     // Simpan percakapan ke chat history
+    if (!chatHistory[chatId]) chatHistory[chatId] = {};
     if (!chatHistory[chatId].history) chatHistory[chatId].history = [];
     chatHistory[chatId].history.push({
       role: "user",
