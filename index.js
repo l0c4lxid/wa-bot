@@ -20,7 +20,10 @@ function logBot(message) {
 // ================
 // START WHATSAPP BOT
 // ================
-startBot(logBot); // Kirim logBot sebagai argumen ke bot agar bisa dipakai di dalamnya
+startBot(logBot).catch((err) => {
+  logBot(`❌ Gagal memulai bot: ${err}`);
+  setTimeout(() => startBot(logBot), 3_000);
+});
 
 // =====================
 // EXPRESS ROUTES

@@ -3,89 +3,123 @@ const qrcode = require("qrcode-terminal");
 const {
   makeWASocket,
   useMultiFileAuthState,
-  downloadMediaMessage,
+  fetchLatestBaileysVersion,
+  DisconnectReason,
 } = require("@whiskeysockets/baileys");
-const { handleTextMessage, handleImageMessage } = require("./handlers");
+const { handleTextMessage } = require("./handlers");
 
 const authFolder = "./auth";
+const MAX_LOGIN_RETRIES = 3;
 let loginAttempts = 0;
 
-async function startBot(logFn = console.log) {
-  if (loginAttempts >= 3) {
-    logFn("❌ Gagal login 3 kali, menghapus folder auth...");
+function clearAuthFolder(logFn) {
+  try {
     fs.rmSync(authFolder, { recursive: true, force: true });
-    loginAttempts = 0;
+    logFn("🧹 Cache auth dibersihkan, scan ulang diperlukan.");
+  } catch (err) {
+    logFn(`❗ Gagal menghapus folder auth: ${err}`);
   }
+}
 
+async function startBot(logFn = console.log) {
   const { state, saveCreds } = await useMultiFileAuthState(authFolder);
+  const { version, isLatest } = await fetchLatestBaileysVersion();
+
+  logFn(
+    `ℹ️ Menggunakan WA Web v${version.join(".")} (latest: ${
+      isLatest ? "ya" : "tidak"
+    })`
+  );
+
   const sock = makeWASocket({
+    version,
     auth: state,
     browser: ["Chrome", "MacOS", "Latest"],
+    printQRInTerminal: false,
+    connectTimeoutMs: 30_000,
+    markOnlineOnConnect: false,
+    syncFullHistory: false,
   });
 
   sock.ev.on("creds.update", saveCreds);
 
   sock.ev.on("connection.update", (update) => {
-    const { connection, qr } = update;
+    const { connection, lastDisconnect, qr } = update;
+
     if (qr) {
       logFn("📱 Scan QR Code berikut untuk login:");
       qrcode.generate(qr, { small: true });
     }
 
-    if (connection === "close") {
-      logFn("⚠️ Koneksi terputus, mencoba reconnect...");
-      loginAttempts++;
-      startBot(logFn);
-    } else if (connection === "open") {
+    if (connection === "open") {
       logFn("✅ Bot WhatsApp siap!");
       loginAttempts = 0;
+      return;
+    }
+
+    if (connection === "close") {
+      const statusCode = lastDisconnect?.error?.output?.statusCode;
+      const reason = lastDisconnect?.error?.message || lastDisconnect?.error;
+      const shouldResetSession =
+        statusCode === DisconnectReason.loggedOut ||
+        statusCode === DisconnectReason.badSession;
+
+      if (shouldResetSession || loginAttempts >= MAX_LOGIN_RETRIES) {
+        clearAuthFolder(logFn);
+        loginAttempts = 0;
+      } else {
+        loginAttempts += 1;
+      }
+
+      const delay = shouldResetSession ? 1_000 : 2_000;
+      logFn(
+        `⚠️ Koneksi terputus (${statusCode ?? "unknown"}: ${
+          reason ?? "tanpa detail"
+        }). ${
+          shouldResetSession
+            ? "Reset auth dan minta scan ulang"
+            : "Mencoba reconnect"
+        } dalam ${delay / 1000}s...`
+      );
+
+      setTimeout(() => {
+        startBot(logFn);
+      }, delay);
     }
   });
 
-  sock.ev.on("messages.upsert", async (m) => {
-    const msg = m.messages[0];
-    if (!msg.key.fromMe) {
-      const sender = msg.key.remoteJid;
-      logFn(`📩 Pesan diterima dari ${sender}`);
+  sock.ev.on("messages.upsert", async ({ messages }) => {
+    const msg = messages?.[0];
+    if (
+      !msg?.message ||
+      msg.key.fromMe ||
+      msg.key.remoteJid === "status@broadcast"
+    ) {
+      return;
+    }
 
-      await sock.readMessages([msg.key]);
+    const sender = msg.key.remoteJid;
+    logFn(`📩 Pesan diterima dari ${sender}`);
 
-      if (msg.message?.protocolMessage?.type === 0) {
-        logFn(`🗑️ Pesan dari ${sender} telah dihapus.`);
-        return;
-      }
+    await sock.readMessages([msg.key]);
 
-      try {
-        if (msg.message.imageMessage) {
-          const mediaBuffer = await downloadMediaMessage(msg, "buffer");
-          const mimeType = msg.message.imageMessage.mimetype || "image/jpeg";
-          const reply = await handleImageMessage(mediaBuffer, mimeType);
+    if (msg.message?.protocolMessage?.type === 0) {
+      logFn(`🗑️ Pesan dari ${sender} telah dihapus.`);
+      return;
+    }
 
-          await sock.sendMessage(sender, { text: reply }, { read: true });
-          logFn(`🖼️ Balasan gambar dikirim ke ${sender}`);
-        } else {
-          const text =
-            msg.message.conversation || msg.message.extendedTextMessage?.text;
-          if (!text) return;
+    try {
+      const text =
+        msg.message?.conversation || msg.message?.extendedTextMessage?.text;
+      if (!text) return;
 
-          const reply = await handleTextMessage(sender, text);
+      const reply = await handleTextMessage(sender, text);
+      if (!reply) return;
 
-          if (typeof reply === "string") {
-            await sock.sendMessage(sender, { text: reply }, { read: true });
-            logFn(`💬 Balasan teks dikirim ke ${sender}`);
-          } else if (reply?.type === "image") {
-            const imageBuffer = fs.readFileSync(reply.path);
-            await sock.sendMessage(sender, {
-              image: imageBuffer,
-              caption: reply.caption,
-            });
-            fs.unlinkSync(reply.path);
-            logFn(`🖼️ Gambar dikirim ke ${sender}`);
-          }
-        }
-      } catch (err) {
-        logFn(`❗ Terjadi error saat memproses pesan dari ${sender}: ${err}`);
-      }
+      await sock.sendMessage(sender, { text: reply }, { read: true });
+      logFn(`💬 Balasan teks dikirim ke ${sender}`);
+    } catch (err) {
+      logFn(`❗ Terjadi error saat memproses pesan dari ${sender}: ${err}`);
     }
   });
 }
